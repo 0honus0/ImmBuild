@@ -67,7 +67,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # 载入 .ci/immortalwrt.env（支持 \ 续行 或 () 数组）
+          # 载入 .ci/immortalwrt.env 支持 \ 续行 或 () 数组
           source .ci/immortalwrt.env
           if declare -p PACKAGES >/dev/null 2>&1 && [[ $(declare -p PACKAGES 2>/dev/null) == "declare -a"* ]]; then
             PACKAGES="${PACKAGES[*]}"
@@ -76,18 +76,13 @@ jobs:
             CUSTOM_REPOSITORIES="$(printf '%s\n' "${CUSTOM_REPOSITORIES[@]}")"
           fi
 
-          # ✅ 这里统一给 1024MB，如需改大小可在 repo secrets/vars 或 matrix 中覆盖
-          ROOTFS_PARTSIZE="${ROOTFS_PARTSIZE:-1024}"
-
           echo "==> PACKAGES: $PACKAGES"
           echo "==> CUSTOM_REPOSITORIES: $CUSTOM_REPOSITORIES"
-          echo "==> ROOTFS_PARTSIZE: $ROOTFS_PARTSIZE MB"
 
           docker run --rm \
             -e "PACKAGES=${PACKAGES}" \
             -e "CUSTOM_REPOSITORIES=${CUSTOM_REPOSITORIES:-}" \
             -e "PROFILE=${{ matrix.target.profile }}" \
-            -e "ROOTFS_PARTSIZE=${ROOTFS_PARTSIZE}" \
             -e BIN_DIR=/out \
             -v "$PWD/out:/out" \
             -v "$PWD/build.sh:/work/build.sh:ro" \

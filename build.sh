@@ -7,7 +7,6 @@ set -eu
 PROFILE="${PROFILE:-generic}"                  # generic 或 64
 BIN_DIR="${BIN_DIR:-/out}"                     # 输出目录
 CUSTOM_REPOSITORIES="${CUSTOM_REPOSITORIES:-}" # 追加仓库（可多行）
-ROOTFS_PARTSIZE="${ROOTFS_PARTSIZE:-1024}"
 
 # 规范化包列表
 PKGS="$(printf "%s\n" "$PACKAGES" | tr -d '\r' | awk 'NF' | xargs || true)"
@@ -44,10 +43,10 @@ mkdir -p "$BIN_DIR"
 CORES="$( (nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || echo 1 )"
 [ -z "$CORES" ] && CORES=1
 
-echo "==> Building (PROFILE=$PROFILE, CORES=$CORES, ROOTFS_PARTSIZE=$ROOTFS_PARTSIZE)"
-if ! make -j"$CORES" image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA ROOTFS_PARTSIZE="$ROOTFS_PARTSIZE"; then
+echo "==> Building (PROFILE=$PROFILE, CORES=$CORES)"
+if ! make -j"$CORES" image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA; then
   echo "==> 并行失败，回退到串行 V=s"
-  if ! make -j1 V=s image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA ROOTFS_PARTSIZE="$ROOTFS_PARTSIZE"; then
+  if ! make -j1 V=s image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA; then
     echo "==> 构建失败，打印可用 profiles 及关键 info："
     echo "---- make info ----"; make info || true; echo "-------------------"
     exit 1

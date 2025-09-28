@@ -1,0 +1,114 @@
+name: ImmortalWrt ImageBuilder (x86 generic & 64)
+
+on:
+  schedule:
+    - cron: "0 18 * * *"   # 每日 02:00 北京时间≈18:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build ${{ matrix.target.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: "x86/generic", prefix: "x86-generic-openwrt-", profile: "generic", rootfs: 1024 }
+          - { name: "x86/64",     prefix: "x86-64-openwrt-",      profile: "generic", rootfs: 2048 }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure jq & curl
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Resolve latest ImageBuilder tag for ${{ matrix.target.name }}
+        id: resolve
+        shell: bash
+        env:
+          PREFIX: ${{ matrix.target.prefix }}
+        run: |
+          set -euo pipefail
+          TAG=$(
+            curl -sS "https://hub.docker.com/v2/repositories/immortalwrt/imagebuilder/tags?page_size=1000&name=x86" |
+            jq -r --arg p "$PREFIX" '.results[].name | select(startswith($p))' |
+            awk -v p="$PREFIX" '{ver=$0; sub(p,"",ver); print ver"\t"$0}' |
+            sort -k1,1V | tail -n1 | cut -f2
+          )
+
+          if [ -z "$TAG" ]; then
+            echo "Failed to resolve latest tag for prefix: $PREFIX" >&2
+            exit 1
+          fi
+
+          # 从 tag 提取版本号（去掉前缀里的 "x86-64-openwrt-"）
+          VERSION="${TAG#$PREFIX}"
+
+          echo "Resolved PREFIX:   $PREFIX"
+          echo "Resolved TAG:      $TAG"
+          echo "Resolved VERSION:  $VERSION"
+          echo "Resolved IMAGE:    immortalwrt/imagebuilder:$TAG"
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "image=immortalwrt/imagebuilder:$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Pull ImageBuilder (${{ steps.resolve.outputs.tag }})
+        run: docker pull ${{ steps.resolve.outputs.image }}
+
+      - name: Prep out dir
+        run: |
+          mkdir -p out
+          sudo chown -R $UID:$GID out || true
+          chmod -R 777 out
+
+      - name: Run ImageBuilder
+        shell: bash
+        run: |
+          set -euo pipefail
+          # 载入 .ci/immortalwrt.env（支持 \ 续行 或 () 数组）
+          source .ci/immortalwrt.env
+          if declare -p PACKAGES >/dev/null 2>&1 && [[ $(declare -p PACKAGES 2>/dev/null) == "declare -a"* ]]; then
+            PACKAGES="${PACKAGES[*]}"
+          fi
+          if declare -p CUSTOM_REPOSITORIES >/dev/null 2>&1 && [[ $(declare -p CUSTOM_REPOSITORIES 2>/dev/null) == "declare -a"* ]]; then
+            CUSTOM_REPOSITORIES="$(printf '%s\n' "${CUSTOM_REPOSITORIES[@]}")"
+          fi
+
+          # ✅ 这里统一给 1024MB，如需改大小可在 repo secrets/vars 或 matrix 中覆盖
+          ROOTFS_PARTSIZE="${ROOTFS_PARTSIZE:-1024}"
+
+          echo "==> PACKAGES: $PACKAGES"
+          echo "==> CUSTOM_REPOSITORIES: $CUSTOM_REPOSITORIES"
+          echo "==> ROOTFS_PARTSIZE: $ROOTFS_PARTSIZE MB"
+
+          docker run --rm \
+            -e "PACKAGES=${PACKAGES}" \
+            -e "CUSTOM_REPOSITORIES=${CUSTOM_REPOSITORIES:-}" \
+            -e "PROFILE=${{ matrix.target.profile }}" \
+            -e "ROOTFS_PARTSIZE=${ROOTFS_PARTSIZE}" \
+            -e BIN_DIR=/out \
+            -v "$PWD/out:/out" \
+            -v "$PWD/build.sh:/work/build.sh:ro" \
+            "${{ steps.resolve.outputs.image }}" \
+            /bin/sh /work/build.sh
+
+      - name: Make artifact name
+        shell: bash
+        run: |
+          RAW="${{ matrix.target.name }}"         # e.g. x86/generic
+          SAFE="${RAW//\//_}"                     # 替换 / 为 _
+          NAME="ImmortalWrt_${{ steps.resolve.outputs.version }}_${SAFE}"
+          echo "ARTIFACT_NAME=$NAME" >> $GITHUB_ENV
+          echo "Artifact name: $NAME"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: |
+            out/**/immortalwrt-*
+          if-no-files-found: error
+          compression-level: 5
+          overwrite: true

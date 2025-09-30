@@ -60,7 +60,7 @@ jobs:
       - name: Prep out dir
         run: |
           mkdir -p out
-          sudo chown -R $UID:$GID out || true
+          sudo chown -R $UID out || true
           chmod -R 777 out
 
       - name: Run ImageBuilder

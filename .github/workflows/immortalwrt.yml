@@ -14,7 +14,7 @@ jobs:
       matrix:
         target:
           - { name: "x86/generic", prefix: "x86-generic-openwrt-", profile: "generic", rootfs: 1024 }
-          - { name: "x86/64",     prefix: "x86-64-openwrt-",      profile: "generic", rootfs: 2048 }
+          - { name: "x86/64",      prefix: "x86-64-openwrt-",      profile: "generic", rootfs: 2048 }
 
     steps:
       - name: Checkout

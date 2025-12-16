@@ -17,6 +17,7 @@ echo "==> Packages:"; printf "%s\n" "$PKGS" | tr ' ' '\n' | sed 's/^/  - /'
 # 定位 IB
 IB_ROOT=""
 for d in "$HOME/immortalwrt" /root/immortalwrt /home/build /builder /imagebuilder /openwrt /; do
+  pwd && ls
   if [ -f "$d/Makefile" ] && [ -f "$d/repositories.conf" ]; then IB_ROOT="$d"; break; fi
 done
 [ -z "$IB_ROOT" ] && { echo "FATAL: 找不到 ImageBuilder 根目录（含 Makefile 与 repositories.conf）" >&2; exit 1; }

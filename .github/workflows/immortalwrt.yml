@@ -38,7 +38,7 @@ jobs:
           )
 
           # 暂时固定版本
-          TAG="$PREFIX24.10.4"
+          TAG="${PREFIX}24.10.4"
 
           if [ -z "$TAG" ]; then
             echo "Failed to resolve latest tag for prefix: $PREFIX" >&2

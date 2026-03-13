@@ -17,8 +17,7 @@ echo "==> Packages:"; printf "%s\n" "$PKGS" | tr ' ' '\n' | sed 's/^/  - /'
 # 定位 IB
 IB_ROOT=""
 for d in "$HOME/immortalwrt" /root/immortalwrt /home/build /builder /imagebuilder /openwrt /; do
-  if [ -f "$d/Makefile" ] &&
-     { [ -f "$d/repositories" ] || [ -f "$d/repositories.conf" ]; }; then
+  if [ -f "$d/Makefile" ] && { [ -f "$d/repositories" ] || [ -f "$d/repositories.conf" ]; }; then
     IB_ROOT="$d"
     break
   fi
@@ -47,6 +46,11 @@ mkdir -p "$BIN_DIR"
 CORES="$( (nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || echo 1 )"
 [ -z "$CORES" ] && CORES=1
 
+# 如定义 ROOTFS_PARTSIZE，则将其加入 EXTRA 以自定义 squashfs rootfs 分区大小（单位 MiB）
+if [ -n "$ROOTFS_PARTSIZE" ]; then
+  EXTRA="ROOTFS_PARTSIZE=\"$ROOTFS_PARTSIZE\" $EXTRA"
+fi
+
 echo "==> Building (PROFILE=$PROFILE, CORES=$CORES)"
 if ! make -j"$CORES" image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA; then
   echo "==> 并行失败，回退到串行 V=s"
@@ -66,7 +70,7 @@ have_any=false
 if find bin/targets -type f -name "*squashfs*" | grep -q .; then
   echo "==> Found squashfs images"
   find bin/targets -type f -name "*squashfs*" -print0 \
-  | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
+    | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
   have_any=true
 fi
 
@@ -74,7 +78,7 @@ fi
 if [ "$have_any" != true ] && find bin/targets -type f -name "*ext4*" | grep -q .; then
   echo "WARNING: 未生成 squashfs 回退收集 ext4"
   find bin/targets -type f -name "*ext4*" -print0 \
-  | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
+    | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
   have_any=true
 fi
 

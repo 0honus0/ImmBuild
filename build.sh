@@ -47,7 +47,7 @@ CORES="$( (nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || echo 1
 [ -z "$CORES" ] && CORES=1
 
 # 如定义 ROOTFS_PARTSIZE，则将其加入 EXTRA 以自定义 squashfs rootfs 分区大小（单位 MiB）
-if [ -n "$ROOTFS_PARTSIZE" ]; then
+if [ -v ROOTFS_PARTSIZE ] && [ -n "$ROOTFS_PARTSIZE" ]; then
   EXTRA="ROOTFS_PARTSIZE=\"$ROOTFS_PARTSIZE\" $EXTRA"
 fi
 

@@ -88,6 +88,7 @@ jobs:
             -e "PROFILE=${{ matrix.target.profile }}" \
             -e BIN_DIR=/out \
             -v "$PWD/out:/out" \
+            -v "$PWD/files:/work/files:ro" \
             -v "$PWD/build.sh:/work/build.sh:ro" \
             "${{ steps.resolve.outputs.image }}" \
             /bin/sh /work/build.sh

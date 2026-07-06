@@ -1,0 +1,5 @@
+#!/bin/sh
+[ "$ACTION" = ifup ] || exit 0
+ethtool -K eth1 tso off gso off gro off 2>/dev/null
+ethtool -K eth2 tso off gso off gro off 2>/dev/null
+ethtool -K eth3 tso off gso off gro off 2>/dev/null

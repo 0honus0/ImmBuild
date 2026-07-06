@@ -29,6 +29,17 @@ cd "$IB_ROOT"; echo "==> ImageBuilder root: $PWD"
 # ✅ fix bios boot partition is under 1 MiB
 sed -i 's/256/1024/g' target/linux/x86/image/Makefile || true
 
+# 注入自定义 hotplug 脚本：WAN/LAN ifup 后关闭网卡 offload
+mkdir -p files/etc/hotplug.d/iface
+cat > files/etc/hotplug.d/iface/99-offload <<'EOF'
+#!/bin/sh
+[ "$ACTION" = ifup ] || exit 0
+ethtool -K eth1 tso off gso off gro off 2>/dev/null
+ethtool -K eth2 tso off gso off gro off 2>/dev/null
+ethtool -K eth3 tso off gso off gro off 2>/dev/null
+EOF
+chmod +x files/etc/hotplug.d/iface/99-offload
+
 # 自定义源
 if [ -n "$CUSTOM_REPOSITORIES" ]; then
   echo "==> 追加自定义源到 repositories.conf:"; printf "%s\n" "$CUSTOM_REPOSITORIES" | sed 's/^/  + /'

@@ -1,8 +1,6 @@
 name: ImmortalWrt ImageBuilder (x86 generic & 64)
 
 on:
-  schedule:
-    - cron: "0 18 * * *"   # 每日 02:00 北京时间≈18:00 UTC
   workflow_dispatch: {}
 
 jobs:

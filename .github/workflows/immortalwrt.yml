@@ -20,6 +20,7 @@ jobs:
         run: |
           source .ci/immortalwrt.env
           mkdir out
+          chmod 777 out
           docker run --rm \
             -e "PACKAGES=${PACKAGES[*]}" \
             -e PROFILE=generic \

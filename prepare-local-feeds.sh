@@ -13,7 +13,9 @@ command -v python3 >/dev/null 2>&1 || { echo "FATAL: python3 未安装" >&2; exi
 
 rm -rf "$FEED_ROOT"
 mkdir -p "$FEED_ROOT"
-: > "$REPO_LINES_FILE"
+# This transient local feed is assembled in CI and has no distributed usign key.
+# Disable signature verification only for this ImageBuilder invocation.
+printf 'option check_signature 0\n' > "$REPO_LINES_FILE"
 
 feeds_seen=""
 
@@ -86,11 +88,11 @@ for package in sorted(feed_dir.glob("*.ipk")):
                 control_data = control_tar.extractfile(control)
                 if control_data is None:
                     raise ValueError("cannot read control metadata")
-                sys.stdout.buffer.write(control_data.read().rstrip(b"\\n") + b"\\n")
-        sys.stdout.write(f"Filename: {package.name}\\n")
-        sys.stdout.write(f"Size: {len(package_data)}\\n")
-        sys.stdout.write(f"MD5Sum: {hashlib.md5(package_data).hexdigest()}\\n")
-        sys.stdout.write(f"SHA256sum: {hashlib.sha256(package_data).hexdigest()}\\n\\n")
+                sys.stdout.buffer.write(control_data.read().rstrip(b"\n") + b"\n")
+        sys.stdout.write(f"Filename: {package.name}\n")
+        sys.stdout.write(f"Size: {len(package_data)}\n")
+        sys.stdout.write(f"MD5Sum: {hashlib.md5(package_data).hexdigest()}\n")
+        sys.stdout.write(f"SHA256sum: {hashlib.sha256(package_data).hexdigest()}\n\n")
     except (tarfile.TarError, OSError, ValueError) as exc:
         raise SystemExit(f"FATAL: invalid IPK {package.name}: {exc}")
 PY

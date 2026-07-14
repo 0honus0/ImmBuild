@@ -31,20 +31,10 @@ jobs:
           PREFIX: ${{ matrix.target.prefix }}
         run: |
           set -euo pipefail
-          TAG=$(
-            curl -sS "https://hub.docker.com/v2/repositories/immortalwrt/imagebuilder/tags?page_size=1000&name=x86" |
-            jq -r --arg p "$PREFIX" '.results[].name | select(startswith($p))' |
-            awk -v p="$PREFIX" '{ver=$0; sub(p,"",ver); print ver"\t"$0}' |
-            sort -k1,1V | tail -n1 | cut -f2
-          )
-
-          # 暂时固定版本
-          # TAG="${PREFIX}24.10.6"
-
-          if [ -z "$TAG" ]; then
-            echo "Failed to resolve latest tag for prefix: $PREFIX" >&2
-            exit 1
-          fi
+          # 25.12+ ImageBuilder uses APK feeds, but the locally packaged
+          # Bandix dependencies are published as IPK. Pin the compatible
+          # ImageBuilder release instead of silently switching package formats.
+          TAG="${PREFIX}24.10.6"
 
           # 从 tag 提取版本号（去掉前缀里的 "x86-64-openwrt-"）
           VERSION="${TAG#$PREFIX}"

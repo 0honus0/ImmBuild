@@ -1,4 +1,4 @@
-name: ImmortalWrt ImageBuilder (x86 generic & 64)
+name: ImmortalWrt ImageBuilder (x86_64 + local Bandix feed)
 
 on:
   workflow_dispatch: {}
@@ -11,15 +11,18 @@ jobs:
       fail-fast: false
       matrix:
         target:
-          - { name: "x86/generic", prefix: "x86-generic-openwrt-", profile: "generic", rootfs: 1024 }
-          - { name: "x86/64",      prefix: "x86-64-openwrt-",      profile: "generic", rootfs: 2048 }
+          - { name: "x86_64", prefix: "x86-64-openwrt-", profile: "generic", rootfs: 2048 }
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure jq & curl
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Ensure jq, curl & opkg-utils
+        run: sudo apt-get update && sudo apt-get install -y jq curl opkg-utils
+
+      - name: Prepare local feeds
+        shell: bash
+        run: ./.ci/prepare-local-feeds.sh
 
       - name: Resolve latest ImageBuilder tag for ${{ matrix.target.name }}
         id: resolve
@@ -77,6 +80,17 @@ jobs:
             CUSTOM_REPOSITORIES="$(printf '%s\n' "${CUSTOM_REPOSITORIES[@]}")"
           fi
 
+          LOCAL_REPOS_FILE="$PWD/feed/custom-repositories.conf"
+          if [[ -f "$LOCAL_REPOS_FILE" ]]; then
+            LOCAL_REPOSITORIES="$(cat "$LOCAL_REPOS_FILE")"
+            if [[ -n "$LOCAL_REPOSITORIES" ]]; then
+              if [[ -n "${CUSTOM_REPOSITORIES:-}" ]]; then
+                CUSTOM_REPOSITORIES+=$'\n'
+              fi
+              CUSTOM_REPOSITORIES+="$LOCAL_REPOSITORIES"
+            fi
+          fi
+
           echo "==> PACKAGES: $PACKAGES"
           echo "==> CUSTOM_REPOSITORIES: $CUSTOM_REPOSITORIES"
 
@@ -86,6 +100,7 @@ jobs:
             -e "PROFILE=${{ matrix.target.profile }}" \
             -e BIN_DIR=/out \
             -v "$PWD/out:/out" \
+            -v "$PWD/feed:/work/feed:ro" \
             -v "$PWD/files:/work/files:ro" \
             -v "$PWD/build.sh:/work/build.sh:ro" \
             "${{ steps.resolve.outputs.image }}" \
@@ -94,8 +109,8 @@ jobs:
       - name: Make artifact name
         shell: bash
         run: |
-          RAW="${{ matrix.target.name }}"         # e.g. x86/generic
-          SAFE="${RAW//\//_}"                     # 替换 / 为 _
+          RAW="${{ matrix.target.name }}"
+          SAFE="${RAW//\//_}"
           NAME="ImmortalWrt_${{ steps.resolve.outputs.version }}_${SAFE}"
           echo "ARTIFACT_NAME=$NAME" >> $GITHUB_ENV
           echo "Artifact name: $NAME"

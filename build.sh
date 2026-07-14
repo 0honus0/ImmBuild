@@ -27,4 +27,7 @@ done
 mkdir -p "$bin_dir"
 make -j"$(nproc)" image PROFILE="$profile" PACKAGES="$packages" FILES=files/ BIN_DIR="$bin_dir"
 
-find bin/targets -type f \( -name '*squashfs*' -o -name '*ext4*' \) -exec cp -f {} "$bin_dir"/ \;
+find "$bin_dir" -maxdepth 1 -type f -name 'immortalwrt-*' -print -quit | grep -q . || {
+  echo "No firmware artifacts were produced" >&2
+  exit 1
+}

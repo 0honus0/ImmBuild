@@ -1,2 +1,3 @@
-# Generated local feed artifacts
-/feed/
+# Downloaded external IPKs
+/packages/
+/out/

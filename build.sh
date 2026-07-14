@@ -1,111 +1,30 @@
 #!/bin/sh
 set -eu
 
-# 必填
-: "${PACKAGES:?FATAL: 必须通过环境变量 PACKAGES 传入包列表}"
+: "${PACKAGES:?PACKAGES is required}"
 
-PROFILE="${PROFILE:-generic}"                  # generic 或 64
-BIN_DIR="${BIN_DIR:-/out}"                     # 输出目录
-CUSTOM_REPOSITORIES="${CUSTOM_REPOSITORIES:-}" # 追加仓库（可多行）
+profile="${PROFILE:-generic}"
+bin_dir="${BIN_DIR:-/out}"
+packages="$(printf '%s\n' "$PACKAGES" | xargs)"
+[ -n "$packages" ] || { echo "Package list is empty" >&2; exit 1; }
 
-# 规范化包列表
-PKGS="$(printf "%s\n" "$PACKAGES" | tr -d '\r' | awk 'NF' | xargs || true)"
-[ -z "$PKGS" ] && { echo "FATAL: 解析后包列表为空"; exit 1; }
+ib_root=/home/build/immortalwrt
+[ -f "$ib_root/Makefile" ] || { echo "ImageBuilder not found: $ib_root" >&2; exit 1; }
+cd "$ib_root"
 
-echo "==> Packages:"; printf "%s\n" "$PKGS" | tr ' ' '\n' | sed 's/^/  - /'
+sed -i 's/256/1024/g' target/linux/x86/image/Makefile
 
-# 定位 IB
-IB_ROOT=""
-for d in "$HOME/immortalwrt" /root/immortalwrt /home/build /builder /imagebuilder /openwrt /; do
-  if [ -f "$d/Makefile" ] && { [ -f "$d/repositories" ] || [ -f "$d/repositories.conf" ]; }; then
-    IB_ROOT="$d"
-    break
-  fi
-done
-[ -z "$IB_ROOT" ] && { echo "FATAL: 找不到 ImageBuilder 根目录（含 Makefile 与 repositories.conf）" >&2; exit 1; }
-
-cd "$IB_ROOT"; echo "==> ImageBuilder root: $PWD"
-
-# ✅ fix bios boot partition is under 1 MiB
-sed -i 's/256/1024/g' target/linux/x86/image/Makefile || true
-
-# 若仓库挂载了 /work/files，则同步到 ImageBuilder 的 ./files
 if [ -d /work/files ]; then
-  echo "==> 同步 /work/files/ 到 ImageBuilder ./files/"
-  mkdir -p ./files
-  cp -a /work/files/. ./files/
+  mkdir -p files
+  cp -a /work/files/. files/
 fi
 
-# 将 CI 下载的本地 IPK 放入 ImageBuilder 自己的 packages 目录。
-# ImageBuilder 会在构建时为该目录生成并签名 Packages 索引，避免外部
-# file:// feed 的索引签名与构建密钥不匹配。
-if [ -d /work/feed ]; then
-  local_ipks="$(find /work/feed -type f -name '*.ipk' -print)"
-  if [ -n "$local_ipks" ]; then
-    echo "==> 导入本地 IPK 到 ImageBuilder packages/"
-    mkdir -p ./packages
-    printf '%s\n' "$local_ipks" | while IFS= read -r package; do
-      cp -f "$package" ./packages/
-      echo "  + ${package##*/}"
-    done
-  fi
-fi
+for package in /work/packages/*.ipk; do
+  [ -f "$package" ] || continue
+  cp -f "$package" packages/
+done
 
-# 关键修复：确保 rootfs 内一定有 /boot 目录（避免 cp .../boot/. 报错）
-# 无 files 时创建最小 files，并启用 FILES=files/
-EXTRA=""
-[ -d ./files ] && { echo "==> 将 ./files/ 打入固件"; EXTRA="FILES=files/"; }
+mkdir -p "$bin_dir"
+make -j"$(nproc)" image PROFILE="$profile" PACKAGES="$packages" FILES=files/ BIN_DIR="$bin_dir"
 
-mkdir -p "$BIN_DIR"
-
-# 并行度
-CORES="$( (nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null) || echo 1 )"
-[ -z "$CORES" ] && CORES=1
-
-# 如定义 ROOTFS_PARTSIZE，则将其加入 EXTRA 以自定义 squashfs rootfs 分区大小（单位 MiB）
-ROOTFS_PARTSIZE_VALUE="${ROOTFS_PARTSIZE-}"
-if [ -n "$ROOTFS_PARTSIZE_VALUE" ]; then
-  EXTRA="ROOTFS_PARTSIZE=\"$ROOTFS_PARTSIZE_VALUE\" $EXTRA"
-fi
-
-echo "==> Building (PROFILE=$PROFILE, CORES=$CORES)"
-if ! make -j"$CORES" image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA; then
-  echo "==> 并行失败，回退到串行 V=s"
-  if ! make -j1 V=s image PROFILE="$PROFILE" PACKAGES="$PKGS" $EXTRA; then
-    echo "==> 构建失败，打印可用 profiles 及关键 info："
-    echo "---- make info ----"; make info || true; echo "-------------------"
-    exit 1
-  fi
-fi
-
-echo "==> Collecting EFI images to $BIN_DIR"
-mkdir -p "$BIN_DIR"
-
-have_any=false
-
-# 先尝试 squashfs
-if find bin/targets -type f -name "*squashfs*" | grep -q .; then
-  echo "==> Found squashfs images"
-  find bin/targets -type f -name "*squashfs*" -print0 \
-    | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
-  have_any=true
-fi
-
-# 若没有，再尝试 ext4
-if [ "$have_any" != true ] && find bin/targets -type f -name "*ext4*" | grep -q .; then
-  echo "WARNING: 未生成 squashfs 回退收集 ext4"
-  find bin/targets -type f -name "*ext4*" -print0 \
-    | xargs -0 -I{} sh -c 'cp -f "$1" "$2"/; echo "  + ${1##*/}"' _ "{}" "$BIN_DIR"
-  have_any=true
-fi
-
-if [ "$have_any" != true ]; then
-  echo "FATAL: 未找到 *squashfs* 或 *ext4* 产物"
-  echo "---- ls bin/targets (for debug) ----"
-  ls -R bin/targets || true
-  echo "------------------------------------"
-  exit 1
-fi
-
-FOUND="$(find "$BIN_DIR" -maxdepth 1 -type f -name "*combined-efi*" | wc -l | tr -d ' ')"
-echo "==> Done. ($FOUND file(s))"
+find bin/targets -type f \( -name '*squashfs*' -o -name '*ext4*' \) -exec cp -f {} "$bin_dir"/ \;

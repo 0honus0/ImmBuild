@@ -1,104 +1,38 @@
-name: ImmortalWrt ImageBuilder (x86_64)
+name: Build ImmortalWrt x86_64
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build ${{ matrix.target.name }}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        target:
-          - { name: "x86_64", prefix: "x86-64-openwrt-", profile: "generic", rootfs: 2048 }
+    env:
+      IMAGE: immortalwrt/imagebuilder:x86-64-openwrt-24.10.6
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Ensure jq & curl
-        run: sudo apt-get update && sudo apt-get install -y jq curl
+      - name: Download external packages
+        run: ./download-packages.sh
 
-      - name: Download local feed packages
-        shell: bash
-        run: ./prepare-local-feeds.sh
-
-      - name: Resolve latest ImageBuilder tag for ${{ matrix.target.name }}
-        id: resolve
-        shell: bash
-        env:
-          PREFIX: ${{ matrix.target.prefix }}
-        run: |
-          set -euo pipefail
-          # 25.12+ ImageBuilder uses APK feeds, but the locally packaged
-          # Bandix dependencies are published as IPK. Pin the compatible
-          # ImageBuilder release instead of silently switching package formats.
-          TAG="${PREFIX}24.10.6"
-
-          # 从 tag 提取版本号（去掉前缀里的 "x86-64-openwrt-"）
-          VERSION="${TAG#$PREFIX}"
-
-          echo "Resolved PREFIX:   $PREFIX"
-          echo "Resolved TAG:      $TAG"
-          echo "Resolved VERSION:  $VERSION"
-          echo "Resolved IMAGE:    immortalwrt/imagebuilder:$TAG"
-
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "image=immortalwrt/imagebuilder:$TAG" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Pull ImageBuilder (${{ steps.resolve.outputs.tag }})
-        run: docker pull ${{ steps.resolve.outputs.image }}
-
-      - name: Prep out dir
-        run: |
-          mkdir -p out
-          sudo chown -R $UID out || true
-          chmod -R 777 out
-
-      - name: Run ImageBuilder
+      - name: Build image
         shell: bash
         run: |
-          set -euo pipefail
-          # 载入 .ci/immortalwrt.env 支持 \ 续行 或 () 数组
           source .ci/immortalwrt.env
-          if declare -p PACKAGES >/dev/null 2>&1 && [[ $(declare -p PACKAGES 2>/dev/null) == "declare -a"* ]]; then
-            PACKAGES="${PACKAGES[*]}"
-          fi
-          if declare -p CUSTOM_REPOSITORIES >/dev/null 2>&1 && [[ $(declare -p CUSTOM_REPOSITORIES 2>/dev/null) == "declare -a"* ]]; then
-            CUSTOM_REPOSITORIES="$(printf '%s\n' "${CUSTOM_REPOSITORIES[@]}")"
-          fi
-
-          echo "==> PACKAGES: $PACKAGES"
-
+          mkdir out
           docker run --rm \
-            -e "PACKAGES=${PACKAGES}" \
-            -e "CUSTOM_REPOSITORIES=${CUSTOM_REPOSITORIES:-}" \
-            -e "PROFILE=${{ matrix.target.profile }}" \
+            -e "PACKAGES=${PACKAGES[*]}" \
+            -e PROFILE=generic \
             -e BIN_DIR=/out \
             -v "$PWD/out:/out" \
-            -v "$PWD/feed:/work/feed:ro" \
+            -v "$PWD/packages:/work/packages:ro" \
             -v "$PWD/files:/work/files:ro" \
             -v "$PWD/build.sh:/work/build.sh:ro" \
-            "${{ steps.resolve.outputs.image }}" \
-            /bin/sh /work/build.sh
+            "$IMAGE" /bin/sh /work/build.sh
 
-      - name: Make artifact name
-        shell: bash
-        run: |
-          RAW="${{ matrix.target.name }}"
-          SAFE="${RAW//\//_}"
-          NAME="ImmortalWrt_${{ steps.resolve.outputs.version }}_${SAFE}"
-          echo "ARTIFACT_NAME=$NAME" >> $GITHUB_ENV
-          echo "Artifact name: $NAME"
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: |
-            out/**/immortalwrt-*
+          name: ImmortalWrt_24.10.6_x86_64
+          path: out/**/immortalwrt-*
           if-no-files-found: error
           compression-level: 5
-          overwrite: true

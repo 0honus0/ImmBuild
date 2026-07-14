@@ -36,14 +36,19 @@ if [ -d /work/files ]; then
   cp -a /work/files/. ./files/
 fi
 
-# 自定义源
-if [ -n "$CUSTOM_REPOSITORIES" ]; then
-  echo "==> 追加自定义源到 repositories.conf:"; printf "%s\n" "$CUSTOM_REPOSITORIES" | sed 's/^/  + /'
-  printf "\n# --- custom repositories (appended by CI) ---\n%s\n" "$CUSTOM_REPOSITORIES" >> repositories.conf
-  # The CI-local feed has no distributed usign key. Modify ImageBuilder's
-  # existing option instead of adding a duplicate setting (opkg keeps the
-  # original setting when duplicates are present).
-  sed -i 's/^option check_signature .*/option check_signature 0/' repositories.conf
+# 将 CI 下载的本地 IPK 放入 ImageBuilder 自己的 packages 目录。
+# ImageBuilder 会在构建时为该目录生成并签名 Packages 索引，避免外部
+# file:// feed 的索引签名与构建密钥不匹配。
+if [ -d /work/feed ]; then
+  local_ipks="$(find /work/feed -type f -name '*.ipk' -print)"
+  if [ -n "$local_ipks" ]; then
+    echo "==> 导入本地 IPK 到 ImageBuilder packages/"
+    mkdir -p ./packages
+    printf '%s\n' "$local_ipks" | while IFS= read -r package; do
+      cp -f "$package" ./packages/
+      echo "  + ${package##*/}"
+    done
+  fi
 fi
 
 # 关键修复：确保 rootfs 内一定有 /boot 目录（避免 cp .../boot/. 报错）

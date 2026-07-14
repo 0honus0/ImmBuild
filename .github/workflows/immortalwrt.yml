@@ -51,17 +51,6 @@ jobs:
       - name: Pull ImageBuilder (${{ steps.resolve.outputs.tag }})
         run: docker pull ${{ steps.resolve.outputs.image }}
 
-      - name: Build local feed index
-        shell: bash
-        run: |
-          set -euo pipefail
-          for feed_dir in feed/*; do
-            [ -d "$feed_dir" ] || continue
-            echo "==> 生成索引 [$(basename "$feed_dir")]"
-            ./scripts/ipkg-make-index.sh "$feed_dir" > "$feed_dir/Packages"
-            gzip -kf "$feed_dir/Packages"
-          done
-
       - name: Prep out dir
         run: |
           mkdir -p out
@@ -81,19 +70,7 @@ jobs:
             CUSTOM_REPOSITORIES="$(printf '%s\n' "${CUSTOM_REPOSITORIES[@]}")"
           fi
 
-          LOCAL_REPOS_FILE="$PWD/feed/custom-repositories.conf"
-          if [[ -f "$LOCAL_REPOS_FILE" ]]; then
-            LOCAL_REPOSITORIES="$(cat "$LOCAL_REPOS_FILE")"
-            if [[ -n "$LOCAL_REPOSITORIES" ]]; then
-              if [[ -n "${CUSTOM_REPOSITORIES:-}" ]]; then
-                CUSTOM_REPOSITORIES+=$'\n'
-              fi
-              CUSTOM_REPOSITORIES+="$LOCAL_REPOSITORIES"
-            fi
-          fi
-
           echo "==> PACKAGES: $PACKAGES"
-          echo "==> CUSTOM_REPOSITORIES: $CUSTOM_REPOSITORIES"
 
           docker run --rm \
             -e "PACKAGES=${PACKAGES}" \

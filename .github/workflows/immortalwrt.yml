@@ -51,27 +51,16 @@ jobs:
       - name: Pull ImageBuilder (${{ steps.resolve.outputs.tag }})
         run: docker pull ${{ steps.resolve.outputs.image }}
 
-      - name: Build local feed index with ImageBuilder tools
+      - name: Build local feed index
         shell: bash
         run: |
           set -euo pipefail
-          docker run --rm \
-            -v "$PWD/feed:/work/feed" \
-            "${{ steps.resolve.outputs.image }}" \
-            /bin/sh -ec '
-              INDEXER=/home/build/immortalwrt/staging_dir/host/bin/opkg-make-index
-              [ -x "$INDEXER" ] || INDEXER="$(command -v opkg-make-index || true)"
-              [ -n "$INDEXER" ] && [ -x "$INDEXER" ] || {
-                echo "FATAL: ImageBuilder 中未找到 opkg-make-index" >&2
-                exit 1
-              }
-              for feed_dir in /work/feed/*; do
-                [ -d "$feed_dir" ] || continue
-                echo "==> 生成索引 [$(basename "$feed_dir")]"
-                "$INDEXER" "$feed_dir" > "$feed_dir/Packages"
-                gzip -kf "$feed_dir/Packages"
-              done
-            '
+          for feed_dir in feed/*; do
+            [ -d "$feed_dir" ] || continue
+            echo "==> 生成索引 [$(basename "$feed_dir")]"
+            ./scripts/ipkg-make-index.sh "$feed_dir" > "$feed_dir/Packages"
+            gzip -kf "$feed_dir/Packages"
+          done
 
       - name: Prep out dir
         run: |

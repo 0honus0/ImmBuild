@@ -7,6 +7,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
+      # 固定 IPK 兼容版本
       IMAGE: immortalwrt/imagebuilder:x86-64-openwrt-24.10.6
 
     steps:
@@ -19,8 +20,10 @@ jobs:
         shell: bash
         run: |
           source .ci/immortalwrt.env
+          # 容器内构建用户需要写入挂载的输出目录
           mkdir out
           chmod 777 out
+          # 第三方 IPK 只读挂载后由 ImageBuilder 导入
           docker run --rm \
             -e "PACKAGES=${PACKAGES[*]}" \
             -e PROFILE=generic \

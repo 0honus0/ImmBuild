@@ -17,8 +17,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Ensure jq, curl & opkg-utils
-        run: sudo apt-get update && sudo apt-get install -y jq curl opkg-utils
+      - name: Ensure jq & curl
+        run: sudo apt-get update && sudo apt-get install -y jq curl
 
       - name: Prepare local feeds
         shell: bash

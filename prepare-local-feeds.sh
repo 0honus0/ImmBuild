@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CONFIG_FILE="${1:-$ROOT_DIR/.ci/local-feed-packages.conf}"
 FEED_ROOT="${FEED_ROOT:-$ROOT_DIR/feed}"
 REPO_LINES_FILE="$FEED_ROOT/custom-repositories.conf"

@@ -22,7 +22,7 @@ jobs:
 
       - name: Prepare local feeds
         shell: bash
-        run: ./.ci/prepare-local-feeds.sh
+        run: ./prepare-local-feeds.sh
 
       - name: Resolve latest ImageBuilder tag for ${{ matrix.target.name }}
         id: resolve

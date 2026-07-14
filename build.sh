@@ -40,6 +40,10 @@ fi
 if [ -n "$CUSTOM_REPOSITORIES" ]; then
   echo "==> 追加自定义源到 repositories.conf:"; printf "%s\n" "$CUSTOM_REPOSITORIES" | sed 's/^/  + /'
   printf "\n# --- custom repositories (appended by CI) ---\n%s\n" "$CUSTOM_REPOSITORIES" >> repositories.conf
+  # The CI-local feed has no distributed usign key. Modify ImageBuilder's
+  # existing option instead of adding a duplicate setting (opkg keeps the
+  # original setting when duplicates are present).
+  sed -i 's/^option check_signature .*/option check_signature 0/' repositories.conf
 fi
 
 # 关键修复：确保 rootfs 内一定有 /boot 目录（避免 cp .../boot/. 报错）

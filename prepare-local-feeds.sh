@@ -12,9 +12,7 @@ command -v curl >/dev/null 2>&1 || { echo "FATAL: curl 未安装" >&2; exit 1; }
 
 rm -rf "$FEED_ROOT"
 mkdir -p "$FEED_ROOT"
-# This transient local feed is assembled in CI and has no distributed usign key.
-# Disable signature verification only for this ImageBuilder invocation.
-printf 'option check_signature 0\n' > "$REPO_LINES_FILE"
+: > "$REPO_LINES_FILE"
 
 feeds_seen=""
 

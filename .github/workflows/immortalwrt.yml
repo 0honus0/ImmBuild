@@ -6,12 +6,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      # 固定 IPK 兼容版本
-      IMAGE: immortalwrt/imagebuilder:x86-64-openwrt-25.12.2
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Resolve latest stable version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          versions_url="https://downloads.immortalwrt.org/.versions.json"
+          version="$(curl --fail --silent --show-error --location "$versions_url" | jq --raw-output '.stable_version')"
+          [[ -n "$version" ]] || {
+            echo "Invalid stable_version from $versions_url: $version" >&2
+            exit 1
+          }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Resolved ImmortalWrt stable version: $version"
 
       - name: Download external packages
         run: ./download-packages.sh
@@ -32,11 +42,11 @@ jobs:
             -v "$PWD/packages:/work/packages:ro" \
             -v "$PWD/files:/work/files:ro" \
             -v "$PWD/build.sh:/work/build.sh:ro" \
-            "$IMAGE" /bin/sh /work/build.sh
+            "immortalwrt/imagebuilder:x86-64-openwrt-${{ steps.version.outputs.version }}" /bin/sh /work/build.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ImmortalWrt_24.10.6_x86_64
+          name: ImmortalWrt_${{ steps.version.outputs.version }}_x86_64
           path: out/**/immortalwrt-*
           if-no-files-found: error
           compression-level: 5

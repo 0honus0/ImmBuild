@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # 固定 IPK 兼容版本
-      IMAGE: immortalwrt/imagebuilder:x86-64-openwrt-24.10.6
+      IMAGE: immortalwrt/imagebuilder:x86-64-openwrt-25.12.2
 
     steps:
       - uses: actions/checkout@v4

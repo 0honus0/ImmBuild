@@ -42,7 +42,7 @@ jobs:
             -v "$PWD/packages:/work/packages:ro" \
             -v "$PWD/files:/work/files:ro" \
             -v "$PWD/build.sh:/work/build.sh:ro" \
-            "immortalwrt/imagebuilder:x86-64-openwrt-${{ steps.version.outputs.version }}" /bin/sh /work/build.sh
+            "immortalwrt/imagebuilder:x86-64-openwrt-${{ steps.version.outputs.version }}" /bin/bash /work/build.sh
 
       - uses: actions/upload-artifact@v4
         with:

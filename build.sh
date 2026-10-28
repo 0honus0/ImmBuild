@@ -24,11 +24,58 @@ if [ -d /work/files ]; then
   cp -a /work/files/. files/
 fi
 
-# 导入下载的第三方 IPK
-# ImageBuilder 会为 packages 目录生成匹配的索引和签名
+# 25.12 使用 apk，外部仓库仍提供传统 ipk。
+# 将 ipk 的 data/control 元数据转换为 apk，再交给 ImageBuilder 建索引。
+# 25.12 的 apk 不会读取 packages 目录中的 ipk 文件。
+convert_ipk_to_apk() {
+  package="$1"
+  workdir="$(mktemp -d)"
+  trap 'rm -rf "$workdir"' RETURN
+
+  tar xzf "$package" -C "$workdir"
+  mkdir -p "$workdir/control" "$workdir/data"
+  tar xzf "$workdir/control.tar.gz" -C "$workdir/control"
+  tar xzf "$workdir/data.tar.gz" -C "$workdir/data"
+
+  control="$workdir/control/control"
+  name="$(sed -n 's/^Package: //p' "$control")"
+  version="$(sed -n 's/^Version: //p' "$control")"
+  arch="$(sed -n 's/^Architecture: //p' "$control")"
+  description="$(sed -n 's/^Description: //p' "$control")"
+  depends="$(sed -n 's/^Depends: //p' "$control")"
+
+  [ -n "$name" ] && [ -n "$version" ] && [ -n "$arch" ] || {
+    echo "Invalid package metadata: $package" >&2
+    return 1
+  }
+
+  [ "$arch" = all ] && arch=noarch
+  args=(
+    --output "packages/${name}-${version}.apk"
+    --files "$workdir/data"
+    --info "name:$name"
+    --info "version:$version"
+    --info "arch:$arch"
+  )
+  [ -n "$description" ] && args+=(--info "description:$description")
+
+  IFS=',' read -ra dependency_list <<< "$depends"
+  for dependency in "${dependency_list[@]}"; do
+    dependency="$(printf '%s' "$dependency" | xargs)"
+    [ -n "$dependency" ] && args+=(--info "depends:$dependency")
+  done
+
+  # postinst-pkg contains the package-specific action used after installation.
+  if [ -s "$workdir/control/postinst-pkg" ]; then
+    args+=(--script "post-install:$workdir/control/postinst-pkg")
+  fi
+
+  "$ib_root/staging_dir/host/bin/apk" mkpkg "${args[@]}"
+}
+
 for package in /work/packages/*.ipk; do
   [ -f "$package" ] || continue
-  cp -f "$package" packages/
+  convert_ipk_to_apk "$package"
 done
 
 # 输出目录来自 GitHub Actions 的挂载卷
